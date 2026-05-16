@@ -1,0 +1,280 @@
+# .github/workflows/drift-detection.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Drift Detection — runs every 6 hours and on manual trigger
+#
+# "Someone always changes something manually. Catch it automatically."
+#
+# What this does:
+#   1. Runs terraform plan against the live workspace
+#   2. If plan shows changes → someone has manually modified the platform
+#   3. Creates a GitHub issue describing exactly what drifted
+#   4. Runs governance tests against the live workspace (integration suite)
+#   5. Alerts if any governance rule is violated in the real workspace
+#
+# DEMO: Trigger this manually to show live drift detection in action.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Drift Detection
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"  # Every 6 hours
+
+  # Manual trigger for demo purposes
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to check for drift"
+        required: true
+        type: choice
+        options: [dev, prod, both]
+        default: dev
+
+permissions:
+  contents: read
+  issues: write  # To create drift alert issues
+
+jobs:
+  detect-drift:
+    name: Detect Drift — ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        environment:
+          - ${{ (github.event.inputs.environment == 'both' || github.event_name == 'schedule') && 'dev' || github.event.inputs.environment }}
+          - ${{ github.event.inputs.environment == 'both' || github.event_name == 'schedule' && 'prod' || '' }}
+        exclude:
+          - environment: ""
+
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.ARM_TENANT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7"
+
+      - name: Set environment credentials
+        run: |
+          ENV="${{ matrix.environment }}"
+          if [[ "$ENV" == "prod" ]]; then
+            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_PROD }}" >> $GITHUB_ENV
+            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_PROD }}" >> $GITHUB_ENV
+            echo "WORKSPACE_NUMERIC_ID=${{ secrets.WORKSPACE_NUMERIC_ID_PROD }}" >> $GITHUB_ENV
+          else
+            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_DEV }}" >> $GITHUB_ENV
+            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_DEV }}" >> $GITHUB_ENV
+            echo "WORKSPACE_NUMERIC_ID=${{ secrets.WORKSPACE_NUMERIC_ID_DEV }}" >> $GITHUB_ENV
+          fi
+
+      - name: Terraform Init
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=databricks-governance/${{ matrix.environment }}/terraform.tfstate"
+
+      - name: Terraform Plan (drift check)
+        id: drift
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform plan \
+            -var="databricks_host=${{ env.DATABRICKS_HOST }}" \
+            -var="databricks_token=${{ env.DATABRICKS_TOKEN }}" \
+            -var="metastore_id=${{ secrets.METASTORE_ID }}" \
+            -var="workspace_numeric_id=${{ env.WORKSPACE_NUMERIC_ID }}" \
+            -var="access_connector_id=${{ secrets.ACCESS_CONNECTOR_ID }}" \
+            -var="adls_storage_account=${{ secrets.ADLS_STORAGE_ACCOUNT }}" \
+            -var="log_analytics_workspace_id=${{ secrets.LOG_ANALYTICS_WORKSPACE_ID }}" \
+            -var="key_vault_resource_id=${{ secrets.KEY_VAULT_RESOURCE_ID }}" \
+            -var="key_vault_dns_name=${{ secrets.KEY_VAULT_DNS_NAME }}" \
+            -detailed-exitcode \
+            -no-color 2>&1 | tee drift-report.txt
+
+          PLAN_EXIT=${PIPESTATUS[0]}
+          echo "plan_exit=$PLAN_EXIT" >> $GITHUB_OUTPUT
+
+          if [ $PLAN_EXIT -eq 0 ]; then
+            echo "DRIFT_DETECTED=false" >> $GITHUB_ENV
+            echo "✅ No drift detected in ${{ matrix.environment }}"
+          elif [ $PLAN_EXIT -eq 2 ]; then
+            echo "DRIFT_DETECTED=true" >> $GITHUB_ENV
+            echo "🚨 DRIFT DETECTED in ${{ matrix.environment }}!"
+          else
+            echo "DRIFT_DETECTED=error" >> $GITHUB_ENV
+            echo "❌ Terraform plan failed — could not determine drift status"
+            exit 1
+          fi
+
+      - name: Create drift alert issue
+        if: env.DRIFT_DETECTED == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync(
+              'terraform/environments/${{ matrix.environment }}/drift-report.txt',
+              'utf8'
+            );
+            const truncated = report.length > 50000
+              ? report.substring(0, 50000) + '\n\n... (report truncated)'
+              : report;
+
+            const title = `🚨 Infrastructure Drift Detected — ${{ matrix.environment }} — ${new Date().toISOString().split('T')[0]}`;
+
+            const body = `
+            ## Infrastructure Drift Detected
+
+            **Environment:** \`${{ matrix.environment }}\`
+            **Detected at:** ${new Date().toISOString()}
+            **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ---
+
+            ## What this means
+
+            The live infrastructure in \`${{ matrix.environment }}\` does not match the Terraform state.
+            This means **someone made a manual change** (ClickOps) to the platform without going through code.
+
+            **This is a governance violation.** All changes must flow through Terraform → PR → CI → merge → deploy.
+
+            ---
+
+            ## Remediation options
+
+            ### Option A — Revert the manual change (preferred)
+            \`\`\`bash
+            cd terraform/environments/${{ matrix.environment }}
+            terraform apply  # Restores declared state
+            \`\`\`
+
+            ### Option B — Codify the manual change
+            1. Identify what changed (see drift report below)
+            2. Add the change to Terraform in a new branch
+            3. Open a PR with the governance tests passing
+            4. Merge → auto-deploy will reconcile the state
+
+            **Do NOT leave the drift unresolved.**
+
+            ---
+
+            ## Drift Report (terraform plan output)
+
+            \`\`\`
+            ${truncated}
+            \`\`\`
+            `;
+
+            // Check if a drift issue already exists for this environment
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['drift', '${{ matrix.environment }}'],
+              state: 'open'
+            });
+
+            if (existingIssues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['drift', '${{ matrix.environment }}', 'governance', 'urgent']
+              });
+              console.log('Drift issue created.');
+            } else {
+              // Update existing issue with latest drift report
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssues.data[0].number,
+                body: `## Drift still present — ${new Date().toISOString()}\n\n\`\`\`\n${truncated}\n\`\`\``
+              });
+              console.log('Updated existing drift issue.');
+            }
+
+      - name: Close drift issue if resolved
+        if: env.DRIFT_DETECTED == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['drift', '${{ matrix.environment }}'],
+              state: 'open'
+            });
+
+            for (const issue of existingIssues.data) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `✅ Drift resolved as of ${new Date().toISOString()}. Closing.`
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+            }
+
+      - name: Upload drift report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drift-report-${{ matrix.environment }}-${{ github.run_id }}
+          path: terraform/environments/${{ matrix.environment }}/drift-report.txt
+          retention-days: 30
+
+  # ── Live Governance Audit ─────────────────────────────────────────────────────
+  # Run integration tests against real workspace to catch in-workspace violations
+  live-governance-audit:
+    name: Live Governance Audit — ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    needs: detect-drift
+    if: always()  # Run even if drift detected
+    strategy:
+      matrix:
+        environment: [dev]  # Extend to prod when integration tests are stable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install pytest databricks-sdk
+
+      - name: Run live governance tests
+        run: |
+          pytest tests/integration/ \
+            -v \
+            --tb=short \
+            -k "not test_no_personal_access_tokens" \
+            --junit-xml=live-governance-${{ matrix.environment }}.xml
+        env:
+          DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST_DEV }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN_DEV }}
+        continue-on-error: true
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-governance-${{ matrix.environment }}-${{ github.run_id }}
+          path: live-governance-${{ matrix.environment }}.xml

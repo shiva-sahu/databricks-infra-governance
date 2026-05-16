@@ -1,0 +1,23 @@
+# pyproject.toml — pytest configuration
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+
+markers = [
+    "governance: governance tests (run on every PR, block merges)",
+    "integration: integration tests (require live workspace)",
+    "slow: marks tests as slow",
+]
+
+# Separate governance and integration test runs
+# pytest tests/governance/     → runs on every PR
+# pytest tests/integration/    → runs post-deploy only

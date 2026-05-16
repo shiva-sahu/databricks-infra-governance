@@ -1,0 +1,211 @@
+# .github/workflows/deploy.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy — runs on merge to dev or main
+#
+# dev  branch → deploys to dev workspace
+# main branch → deploys to prod workspace (requires manual approval)
+#
+# The deploy never runs unless governance-check passed first.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - "terraform/**"
+
+  # Allow manual trigger for emergency deploys
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [dev, prod]
+      reason:
+        description: "Reason for manual deploy"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write  # For OIDC auth to Azure
+
+jobs:
+  # ── Determine target environment ─────────────────────────────────────────────
+  setup:
+    name: Determine Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      workspace_host: ${{ steps.env.outputs.workspace_host }}
+
+    steps:
+      - name: Resolve environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+
+  # ── Re-run governance tests before deploy ────────────────────────────────────
+  # We run these again to catch anything that slipped through (belt & braces)
+  pre-deploy-governance:
+    name: Pre-Deploy Governance Gate
+    runs-on: ubuntu-latest
+    needs: setup
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install pytest pyyaml python-hcl2 jsonschema
+
+      - name: Run governance tests
+        run: pytest tests/governance/ -v --tb=short
+
+  # ── Terraform Apply ───────────────────────────────────────────────────────────
+  terraform-apply:
+    name: Terraform Apply → ${{ needs.setup.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [setup, pre-deploy-governance]
+    environment: ${{ needs.setup.outputs.environment }}  # GitHub environment with protection rules
+
+    env:
+      ENVIRONMENT:         ${{ needs.setup.outputs.environment }}
+      ARM_CLIENT_ID:       ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.ARM_TENANT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7"
+
+      - name: Set environment-specific secrets
+        id: secrets
+        run: |
+          ENV="${{ env.ENVIRONMENT }}"
+          if [[ "$ENV" == "prod" ]]; then
+            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_PROD }}" >> $GITHUB_ENV
+            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_PROD }}" >> $GITHUB_ENV
+            echo "WORKSPACE_NUMERIC_ID=${{ secrets.WORKSPACE_NUMERIC_ID_PROD }}" >> $GITHUB_ENV
+          else
+            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_DEV }}" >> $GITHUB_ENV
+            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_DEV }}" >> $GITHUB_ENV
+            echo "WORKSPACE_NUMERIC_ID=${{ secrets.WORKSPACE_NUMERIC_ID_DEV }}" >> $GITHUB_ENV
+          fi
+
+      - name: Terraform Init
+        working-directory: terraform/environments/${{ env.ENVIRONMENT }}
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=databricks-governance/${{ env.ENVIRONMENT }}/terraform.tfstate"
+
+      - name: Terraform Plan
+        working-directory: terraform/environments/${{ env.ENVIRONMENT }}
+        run: |
+          terraform plan \
+            -var="databricks_host=${{ env.DATABRICKS_HOST }}" \
+            -var="databricks_token=${{ env.DATABRICKS_TOKEN }}" \
+            -var="metastore_id=${{ secrets.METASTORE_ID }}" \
+            -var="workspace_numeric_id=${{ env.WORKSPACE_NUMERIC_ID }}" \
+            -var="access_connector_id=${{ secrets.ACCESS_CONNECTOR_ID }}" \
+            -var="adls_storage_account=${{ secrets.ADLS_STORAGE_ACCOUNT }}" \
+            -var="log_analytics_workspace_id=${{ secrets.LOG_ANALYTICS_WORKSPACE_ID }}" \
+            -var="key_vault_resource_id=${{ secrets.KEY_VAULT_RESOURCE_ID }}" \
+            -var="key_vault_dns_name=${{ secrets.KEY_VAULT_DNS_NAME }}" \
+            -out=tfplan \
+            -detailed-exitcode 2>&1 | tee plan-output.txt
+
+          PLAN_EXIT=${PIPESTATUS[0]}
+          if [ $PLAN_EXIT -eq 1 ]; then
+            echo "::error::Terraform plan failed."
+            exit 1
+          elif [ $PLAN_EXIT -eq 0 ]; then
+            echo "NO_CHANGES=true" >> $GITHUB_ENV
+            echo "No infrastructure changes detected."
+          fi
+
+      - name: Terraform Apply
+        if: env.NO_CHANGES != 'true'
+        working-directory: terraform/environments/${{ env.ENVIRONMENT }}
+        run: |
+          terraform apply \
+            -auto-approve \
+            -input=false \
+            tfplan 2>&1 | tee apply-output.txt
+
+      - name: Record deployment
+        if: always()
+        run: |
+          echo "Deployment summary:"
+          echo "  Environment: ${{ env.ENVIRONMENT }}"
+          echo "  Branch:      ${{ github.ref_name }}"
+          echo "  Commit:      ${{ github.sha }}"
+          echo "  Actor:       ${{ github.actor }}"
+          echo "  Timestamp:   $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  # ── Post-Deploy Integration Tests ────────────────────────────────────────────
+  integration-tests:
+    name: Post-Deploy Integration Tests
+    runs-on: ubuntu-latest
+    needs: [setup, terraform-apply]
+    if: needs.terraform-apply.result == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install pytest databricks-sdk
+
+      - name: Set workspace credentials
+        run: |
+          ENV="${{ needs.setup.outputs.environment }}"
+          if [[ "$ENV" == "prod" ]]; then
+            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_PROD }}" >> $GITHUB_ENV
+            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_PROD }}" >> $GITHUB_ENV
+          else
+            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_DEV }}" >> $GITHUB_ENV
+            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_DEV }}" >> $GITHUB_ENV
+          fi
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ \
+            -v \
+            --tb=short \
+            --junit-xml=integration-results.xml
+        env:
+          DATABRICKS_HOST: ${{ env.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-results-${{ needs.setup.outputs.environment }}
+          path: integration-results.xml

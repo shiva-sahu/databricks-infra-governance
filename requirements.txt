@@ -1,0 +1,13 @@
+# Governance test dependencies
+pytest>=7.4
+pytest-md-report>=0.6
+pyyaml>=6.0
+python-hcl2>=4.3
+jsonschema>=4.20
+
+# Integration test dependencies (live workspace)
+databricks-sdk>=0.20
+
+# Local development
+black>=23.0
+isort>=5.12
