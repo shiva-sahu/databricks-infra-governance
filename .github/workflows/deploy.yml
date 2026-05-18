@@ -86,6 +86,7 @@ jobs:
       ARM_CLIENT_SECRET:   ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID:       ${{ secrets.ARM_TENANT_ID }}
+      ARM_ACCESS_KEY:      ${{ secrets.TF_STATE_ACCESS_KEY }}
 
     steps:
       - name: Checkout
@@ -103,27 +104,32 @@ jobs:
         run: |
           ENV="${{ env.ENVIRONMENT }}"
           if [[ "$ENV" == "prod" ]]; then
-            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_PROD }}" >> $GITHUB_ENV
-            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_PROD }}" >> $GITHUB_ENV
-            echo "WORKSPACE_NUMERIC_ID=${{ secrets.WORKSPACE_NUMERIC_ID_PROD }}" >> $GITHUB_ENV
+            echo "::add-mask::${{ secrets.DATABRICKS_HOST_PROD }}"
+            echo "::add-mask::${{ secrets.DATABRICKS_TOKEN_PROD }}"
+            echo "databricks_host=${{ secrets.DATABRICKS_HOST_PROD }}"              >> $GITHUB_OUTPUT
+            echo "databricks_token=${{ secrets.DATABRICKS_TOKEN_PROD }}"            >> $GITHUB_OUTPUT
+            echo "workspace_numeric_id=${{ secrets.WORKSPACE_NUMERIC_ID_PROD }}"   >> $GITHUB_OUTPUT
           else
-            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_DEV }}" >> $GITHUB_ENV
-            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_DEV }}" >> $GITHUB_ENV
-            echo "WORKSPACE_NUMERIC_ID=${{ secrets.WORKSPACE_NUMERIC_ID_DEV }}" >> $GITHUB_ENV
+            echo "::add-mask::${{ secrets.DATABRICKS_HOST_DEV }}"
+            echo "::add-mask::${{ secrets.DATABRICKS_TOKEN_DEV }}"
+            echo "databricks_host=${{ secrets.DATABRICKS_HOST_DEV }}"              >> $GITHUB_OUTPUT
+            echo "databricks_token=${{ secrets.DATABRICKS_TOKEN_DEV }}"            >> $GITHUB_OUTPUT
+            echo "workspace_numeric_id=${{ secrets.WORKSPACE_NUMERIC_ID_DEV }}"    >> $GITHUB_OUTPUT
           fi
 
       - name: Terraform Init
         working-directory: terraform/environments/${{ env.ENVIRONMENT }}
-        run: terraform init -backend-config="use_azuread_auth=true"
+        run: terraform init
 
       - name: Terraform Plan
+        id: plan
         working-directory: terraform/environments/${{ env.ENVIRONMENT }}
         run: |
           terraform plan \
-            -var="databricks_host=${{ env.DATABRICKS_HOST }}" \
-            -var="databricks_token=${{ env.DATABRICKS_TOKEN }}" \
+            -var="databricks_host=${{ steps.secrets.outputs.databricks_host }}" \
+            -var="databricks_token=${{ steps.secrets.outputs.databricks_token }}" \
             -var="metastore_id=${{ secrets.METASTORE_ID }}" \
-            -var="workspace_numeric_id=${{ env.WORKSPACE_NUMERIC_ID }}" \
+            -var="workspace_numeric_id=${{ steps.secrets.outputs.workspace_numeric_id }}" \
             -var="access_connector_id=${{ secrets.ACCESS_CONNECTOR_ID }}" \
             -var="adls_storage_account=${{ secrets.ADLS_STORAGE_ACCOUNT }}" \
             -var="log_analytics_workspace_id=${{ secrets.LOG_ANALYTICS_WORKSPACE_ID }}" \
@@ -137,12 +143,12 @@ jobs:
             echo "::error::Terraform plan failed."
             exit 1
           elif [ $PLAN_EXIT -eq 0 ]; then
-            echo "NO_CHANGES=true" >> $GITHUB_ENV
+            echo "no_changes=true" >> $GITHUB_OUTPUT
             echo "No infrastructure changes detected."
           fi
 
       - name: Terraform Apply
-        if: env.NO_CHANGES != 'true'
+        if: steps.plan.outputs.no_changes != 'true'
         working-directory: terraform/environments/${{ env.ENVIRONMENT }}
         run: |
           terraform apply \

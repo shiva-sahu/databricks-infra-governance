@@ -53,6 +53,7 @@ jobs:
       ARM_CLIENT_SECRET:   ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID:       ${{ secrets.ARM_TENANT_ID }}
+      ARM_ACCESS_KEY:      ${{ secrets.TF_STATE_ACCESS_KEY }}
 
     steps:
       - name: Checkout
@@ -83,7 +84,7 @@ jobs:
 
       - name: Terraform Init
         working-directory: terraform/environments/${{ matrix.environment }}
-        run: terraform init -backend-config="use_azuread_auth=true"
+        run: terraform init
 
       - name: Terraform Plan (drift check)
         id: drift
