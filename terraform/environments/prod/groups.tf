@@ -1,42 +1,26 @@
 # terraform/environments/prod/groups.tf
 # ─────────────────────────────────────────────────────────────────────────────
-# Azure AD security groups for Databricks.
-# These groups are synced to Databricks via SCIM provisioning.
-# Membership is managed in Azure AD — Terraform controls existence only.
+# Azure AD groups required for this workspace.
+#
+# These groups must be created manually in Azure AD and configured for
+# SCIM provisioning to this Databricks workspace. Terraform references them
+# by display name once SCIM has synced them in.
+#
+# Groups to create in Azure AD:
+#   dbx-metastore-admins       — Unity Catalog metastore administrators
+#   dbx-workspace-admins       — Databricks workspace administrators
+#   dbx-admins                 — General Databricks admins
+#   dbx-platform-engineers     — Platform engineering team
+#   dbx-data-engineers         — Data engineering (all domains)
+#   dbx-data-analysts          — Read-only analysts
+#   dbx-data-scientists        — ML/data science team
+#   dbx-ecommerce-data-engineers — Ecommerce domain engineers
+#   dbx-finance-data-engineers   — Finance domain engineers
+#   dbx-finance-analysts         — Finance read-only analysts
 # ─────────────────────────────────────────────────────────────────────────────
 
 locals {
-  # All groups keyed by a logical name → Azure AD display name
-  ad_groups = {
-    # ── New admin groups ───────────────────────────────────────────────────────
-    metastore_admins   = "dbx-metastore-admins"
-    workspace_admins   = "dbx-workspace-admins"
-
-    # ── Existing platform groups ───────────────────────────────────────────────
-    dbx_admins         = "dbx-admins"
-    platform_engineers = "dbx-platform-engineers"
-
-    # ── Data roles ────────────────────────────────────────────────────────────
-    data_engineers     = "dbx-data-engineers"
-    data_analysts      = "dbx-data-analysts"
-    data_scientists    = "dbx-data-scientists"
-
-    # ── Domain groups ─────────────────────────────────────────────────────────
-    ecommerce_data_engineers = "dbx-ecommerce-data-engineers"
-    finance_data_engineers   = "dbx-finance-data-engineers"
-    finance_analysts         = "dbx-finance-analysts"
-  }
-}
-
-resource "azuread_group" "databricks" {
-  for_each = local.ad_groups
-
-  display_name     = each.value
-  security_enabled = true
-  mail_enabled     = false
-
-  lifecycle {
-    # Prevent accidental deletion of groups that may have members
-    prevent_destroy = true
+  groups = {
+    metastore_admins = "dbx-metastore-admins"
   }
 }

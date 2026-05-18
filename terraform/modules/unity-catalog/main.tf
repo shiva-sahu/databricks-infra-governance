@@ -41,6 +41,8 @@ resource "databricks_storage_credential" "adls" {
 
   comment = "Managed by Terraform. Do not modify manually. Repo: databricks-governance-demo"
 
+  depends_on = [databricks_metastore_assignment.this]
+
   lifecycle {
     prevent_destroy = true
   }
@@ -51,6 +53,8 @@ resource "databricks_external_location" "main" {
   url             = "abfss://${var.adls_container}@${var.adls_storage_account}.dfs.core.windows.net/"
   credential_name = databricks_storage_credential.adls.name
   comment         = "Primary data lake location. Managed by Terraform."
+
+  depends_on = [databricks_metastore_assignment.this]
 
   lifecycle {
     prevent_destroy = true
@@ -70,6 +74,8 @@ resource "databricks_catalog" "catalogs" {
   owner        = each.value.owner_group  # Always a group. Never an individual.
 
   storage_root = "${databricks_external_location.main.url}${each.key}/"
+
+  depends_on = [databricks_metastore_assignment.this]
 
   properties = {
     environment  = var.environment

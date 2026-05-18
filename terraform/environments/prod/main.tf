@@ -13,10 +13,6 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.80"
     }
-    azuread = {
-      source  = "hashicorp/azuread"
-      version = "~> 2.47"
-    }
     databricks = {
       source  = "databricks/databricks"
       version = "~> 1.35"
@@ -37,10 +33,6 @@ provider "azurerm" {
   features {}
   # Credentials injected via environment variables:
   # ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_SUBSCRIPTION_ID, ARM_TENANT_ID
-}
-
-provider "azuread" {
-  # Uses the same ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID env vars
 }
 
 provider "databricks" {
