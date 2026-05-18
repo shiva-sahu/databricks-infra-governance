@@ -23,7 +23,7 @@ terraform {
   # Never use local state. State = the record of what exists.
   backend "azurerm" {
     resource_group_name  = "terraform-state-rg"
-    storage_account_name = "tfstatedemosa"
+    storage_account_name = "v4cdev"
     container_name       = "tfstate"
     key                  = "databricks-governance/prod/terraform.tfstate"
   }
@@ -148,11 +148,11 @@ module "unity_catalog" {
         ]
         silver = [
           { principal = "finance_data_engineers", privileges = ["USE_SCHEMA", "CREATE_TABLE", "MODIFY", "SELECT"] },
-          { principal = "finance_analysts",        privileges = ["USE_SCHEMA", "SELECT"] }
+          { principal = "finance_analysts", privileges = ["USE_SCHEMA", "SELECT"] }
         ]
         gold = [
           { principal = "finance_data_engineers", privileges = ["USE_SCHEMA", "CREATE_TABLE", "MODIFY", "SELECT"] },
-          { principal = "finance_analysts",        privileges = ["USE_SCHEMA", "SELECT"] }
+          { principal = "finance_analysts", privileges = ["USE_SCHEMA", "SELECT"] }
         ]
       }
     }
@@ -160,7 +160,7 @@ module "unity_catalog" {
 
   external_location_grants = [
     { principal = "ecommerce_data_engineers", privileges = ["READ_FILES"] },
-    { principal = "finance_data_engineers",   privileges = ["READ_FILES"] }
+    { principal = "finance_data_engineers", privileges = ["READ_FILES"] }
   ]
 }
 
@@ -193,7 +193,7 @@ module "secret_scopes" {
       key_vault_dns_name    = var.key_vault_dns_name
       acls = [
         { principal = "data_engineers", permission = "READ" },
-        { principal = "admins",         permission = "MANAGE" }
+        { principal = "admins", permission = "MANAGE" }
       ]
     }
     api_keys = {
@@ -201,7 +201,7 @@ module "secret_scopes" {
       key_vault_dns_name    = var.key_vault_dns_name
       acls = [
         { principal = "data_engineers", permission = "READ" },
-        { principal = "admins",         permission = "MANAGE" }
+        { principal = "admins", permission = "MANAGE" }
       ]
     }
   }
@@ -214,14 +214,14 @@ module "rbac" {
   admin_groups = ["dbx-admins", "platform_engineers"]
 
   workspace_roles = [
-    { group_name = "data_engineers",           can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
-    { group_name = "data_analysts",            can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
-    { group_name = "data_scientists",          can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
-    { group_name = "ecommerce_data_engineers", can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
-    { group_name = "finance_data_engineers",   can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
-    { group_name = "finance_analysts",         can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
+    { group_name = "data_engineers", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
+    { group_name = "data_analysts", can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
+    { group_name = "data_scientists", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
+    { group_name = "ecommerce_data_engineers", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
+    { group_name = "finance_data_engineers", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
+    { group_name = "finance_analysts", can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
   ]
 
   secret_scope_acls         = [] # Managed per-scope in secret_scopes module
-  sql_warehouse_permissions = {}  # Add warehouse IDs once created
+  sql_warehouse_permissions = {} # Add warehouse IDs once created
 }
