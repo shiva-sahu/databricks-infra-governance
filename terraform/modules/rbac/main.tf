@@ -16,14 +16,8 @@ terraform {
 }
 
 # ── Groups ────────────────────────────────────────────────────────────────────
-# Groups are synced from Azure AD via SCIM provisioning.
-# We reference them here by name — we do not create or manage membership.
-# Membership = Azure AD's job. Permissions = Terraform's job.
-
-data "databricks_group" "groups" {
-  for_each     = toset(local.all_group_names)
-  display_name = each.value
-}
+# Groups are created locally in the Databricks workspace.
+# Membership is managed separately (manually or via the Databricks API).
 
 locals {
   all_group_names = distinct(concat(
@@ -32,13 +26,18 @@ locals {
   ))
 }
 
+resource "databricks_group" "groups" {
+  for_each     = toset(local.all_group_names)
+  display_name = each.value
+}
+
 # ── Workspace Permissions ─────────────────────────────────────────────────────
 resource "databricks_entitlements" "workspace_access" {
   for_each = {
     for r in var.workspace_roles : r.group_name => r
   }
 
-  group_id                   = data.databricks_group.groups[each.key].id
+  group_id                   = databricks_group.groups[each.key].id
   allow_cluster_create       = each.value.can_create_clusters
   allow_instance_pool_create = each.value.can_create_instance_pools
   databricks_sql_access      = each.value.sql_access
@@ -50,7 +49,7 @@ resource "databricks_entitlements" "workspace_access" {
 resource "databricks_group_role" "admins" {
   for_each = toset(var.admin_groups)
 
-  group_id = data.databricks_group.groups[each.value].id
+  group_id = databricks_group.groups[each.value].id
   role     = "roles/workspace.admin"
 }
 

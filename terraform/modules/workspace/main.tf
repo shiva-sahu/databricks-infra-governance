@@ -123,6 +123,8 @@ resource "azurerm_databricks_workspace" "main" {
 
 # ── Diagnostic Settings (Audit Logs) ─────────────────────────────────────────
 resource "azurerm_monitor_diagnostic_setting" "databricks" {
+  count = var.log_analytics_workspace_id != "" ? 1 : 0
+
   name                       = "${var.prefix}-${var.environment}-dbx-diag"
   target_resource_id         = azurerm_databricks_workspace.main.id
   log_analytics_workspace_id = var.log_analytics_workspace_id

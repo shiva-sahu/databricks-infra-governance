@@ -53,8 +53,9 @@ variable "private_subnet_cidr" {
 }
 
 variable "log_analytics_workspace_id" {
-  description = "Log Analytics Workspace ID for audit log streaming."
+  description = "Log Analytics Workspace ID for audit log streaming. Leave empty to skip diagnostic settings."
   type        = string
+  default     = ""
 }
 
 variable "team" {

@@ -19,7 +19,7 @@ variable "metastore_id" {
 
 variable "workspace_numeric_id" {
   description = "Numeric workspace ID for metastore assignment."
-  type        = string
+  type        = number
 }
 
 variable "access_connector_id" {
