@@ -77,7 +77,7 @@ resource "databricks_catalog" "catalogs" {
   comment      = each.value.comment
   owner        = each.value.owner_group  # Always a group. Never an individual.
 
-  storage_root = "${databricks_external_location.main.url}${each.key}/"
+  storage_root = var.access_connector_id != "" ? "${databricks_external_location.main[0].url}${each.key}/" : null
 
   depends_on = [databricks_metastore_assignment.this]
 
@@ -174,7 +174,7 @@ resource "databricks_grants" "schema_grants" {
 
 # ── External Location Grants ──────────────────────────────────────────────────
 resource "databricks_grants" "external_location" {
-  external_location = databricks_external_location.main.name
+  external_location = databricks_external_location.main[0].name
 
   dynamic "grant" {
     for_each = var.external_location_grants
