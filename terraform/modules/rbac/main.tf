@@ -45,12 +45,16 @@ resource "databricks_entitlements" "workspace_access" {
 }
 
 # ── Workspace Admins ──────────────────────────────────────────────────────────
-# Admin group assignment. Minimise admin membership — principle of least privilege.
-resource "databricks_group_role" "admins" {
+# Nest admin groups into the built-in workspace admins group.
+data "databricks_group" "workspace_admins" {
+  display_name = "admins"
+}
+
+resource "databricks_group_member" "admin_groups" {
   for_each = toset(var.admin_groups)
 
-  group_id = databricks_group.groups[each.value].id
-  role     = "roles/workspace.admin"
+  group_id  = data.databricks_group.workspace_admins.id
+  member_id = databricks_group.groups[each.value].id
 }
 
 # ── Secret Scope ACLs ─────────────────────────────────────────────────────────

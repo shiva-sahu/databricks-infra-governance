@@ -33,6 +33,8 @@ resource "databricks_metastore_assignment" "this" {
 # All Unity Catalog data lives in managed external location.
 # Credentials are managed by Terraform — never manually created.
 resource "databricks_storage_credential" "adls" {
+  count = var.access_connector_id != "" ? 1 : 0
+
   name = "${var.environment}_${var.team}_storage_credential"
 
   azure_managed_identity {
@@ -49,9 +51,11 @@ resource "databricks_storage_credential" "adls" {
 }
 
 resource "databricks_external_location" "main" {
+  count = var.access_connector_id != "" ? 1 : 0
+
   name            = "${var.environment}_${var.team}_external_location"
   url             = "abfss://${var.adls_container}@${var.adls_storage_account}.dfs.core.windows.net/"
-  credential_name = databricks_storage_credential.adls.name
+  credential_name = databricks_storage_credential.adls[0].name
   comment         = "Primary data lake location. Managed by Terraform."
 
   depends_on = [databricks_metastore_assignment.this]

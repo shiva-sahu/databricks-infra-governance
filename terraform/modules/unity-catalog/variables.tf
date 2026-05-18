@@ -33,6 +33,7 @@ variable "team" {
 variable "access_connector_id" {
   description = "Azure Access Connector resource ID for ADLS storage credentials."
   type        = string
+  default     = ""
 }
 
 variable "adls_storage_account" {

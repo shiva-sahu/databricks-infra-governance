@@ -32,9 +32,6 @@ resource "databricks_secret_scope" "scopes" {
     resource_id = each.value.key_vault_resource_id
     dns_name    = each.value.key_vault_dns_name
   }
-
-  # Governance: initial ACL must specify at least MANAGE permission
-  initial_manage_principal = "admins"
 }
 
 # ── Scope ACLs ────────────────────────────────────────────────────────────────

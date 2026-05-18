@@ -27,6 +27,7 @@ variable "workspace_numeric_id" {
 variable "access_connector_id" {
   description = "Azure Access Connector resource ID."
   type        = string
+  default     = ""
 }
 
 variable "adls_storage_account" {
