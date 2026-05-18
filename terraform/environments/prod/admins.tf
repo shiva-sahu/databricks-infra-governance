@@ -1,26 +1,39 @@
 # terraform/environments/prod/admins.tf
 # ─────────────────────────────────────────────────────────────────────────────
-# Admin assignments for the prod workspace.
+# Admin user assignments for the prod workspace.
+# Users are added to their respective Azure AD admin groups defined in groups.tf.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Users ─────────────────────────────────────────────────────────────────────
+# ── Look up Azure AD users ────────────────────────────────────────────────────
 
-resource "databricks_user" "shiva" {
-  user_name = "shiva-sahu@v4ctscoutlook.onmicrosoft.com"
+data "azuread_user" "shiva" {
+  user_principal_name = "shiva-sahu@v4ctscoutlook.onmicrosoft.com"
 }
 
-resource "databricks_user" "jahnavi" {
-  user_name = "jahnavi.b.k@v4c.ai"
+data "azuread_user" "jahnavi" {
+  user_principal_name = "jahnavi.b.k@v4c.ai"
 }
 
-# ── Metastore Admin — shiva ───────────────────────────────────────────────────
-# Grants full metastore-level administrative privileges.
+# ── Group membership ──────────────────────────────────────────────────────────
+
+resource "azuread_group_member" "shiva_metastore_admin" {
+  group_object_id  = azuread_group.databricks["metastore_admins"].object_id
+  member_object_id = data.azuread_user.shiva.object_id
+}
+
+resource "azuread_group_member" "jahnavi_workspace_admin" {
+  group_object_id  = azuread_group.databricks["workspace_admins"].object_id
+  member_object_id = data.azuread_user.jahnavi.object_id
+}
+
+# ── Databricks: metastore grants for the admin group ─────────────────────────
+# Applied once the group is synced to Databricks via SCIM.
 
 resource "databricks_grants" "metastore_admin" {
   metastore = var.metastore_id
 
   grant {
-    principal = databricks_user.shiva.user_name
+    principal = azuread_group.databricks["metastore_admins"].display_name
     privileges = [
       "CREATE CATALOG",
       "CREATE EXTERNAL LOCATION",
@@ -33,14 +46,20 @@ resource "databricks_grants" "metastore_admin" {
   }
 }
 
-# ── Workspace Admin — jahnavi ─────────────────────────────────────────────────
-# Adds jahnavi to the built-in workspace admins group.
+# ── Databricks: workspace admin group ─────────────────────────────────────────
+# Adds the workspace_admins Azure AD group to the Databricks built-in admins group
+# once SCIM sync brings it into the workspace.
 
 data "databricks_group" "admins" {
   display_name = "admins"
 }
 
-resource "databricks_group_member" "jahnavi_admin" {
+data "databricks_group" "workspace_admins_synced" {
+  display_name = azuread_group.databricks["workspace_admins"].display_name
+  depends_on   = [azuread_group.databricks]
+}
+
+resource "databricks_group_member" "workspace_admins_nested" {
   group_id  = data.databricks_group.admins.id
-  member_id = databricks_user.jahnavi.id
+  member_id = data.databricks_group.workspace_admins_synced.id
 }

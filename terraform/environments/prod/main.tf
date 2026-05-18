@@ -13,6 +13,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.80"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 2.47"
+    }
     databricks = {
       source  = "databricks/databricks"
       version = "~> 1.35"
@@ -33,6 +37,10 @@ provider "azurerm" {
   features {}
   # Credentials injected via environment variables:
   # ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_SUBSCRIPTION_ID, ARM_TENANT_ID
+}
+
+provider "azuread" {
+  # Uses the same ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID env vars
 }
 
 provider "databricks" {
@@ -207,22 +215,21 @@ module "secret_scopes" {
   }
 }
 
-# ── RBAC ──────────────────────────────────────────────────────────────────────
-# Temporarily disabled — uncomment to enable workspace role assignments
-# module "rbac" {
-#   source = "../../modules/rbac"
-#
-#   admin_groups = ["dbx-admins", "platform_engineers"]
-#
-#   workspace_roles = [
-#     { group_name = "data_engineers",           can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
-#     { group_name = "data_analysts",            can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
-#     { group_name = "data_scientists",          can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
-#     { group_name = "ecommerce_data_engineers", can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
-#     { group_name = "finance_data_engineers",   can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
-#     { group_name = "finance_analysts",         can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
-#   ]
-#
-#   secret_scope_acls         = [] # Managed per-scope in secret_scopes module
-#   sql_warehouse_permissions = {} # Add warehouse IDs once created
-# }
+#── RBAC ──────────────────────────────────────────────────────────────────────
+module "rbac" {
+  source = "../../modules/rbac"
+
+  admin_groups = ["dbx-admins", "platform_engineers"]
+
+  workspace_roles = [
+    { group_name = "data_engineers", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
+    { group_name = "data_analysts", can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
+    { group_name = "data_scientists", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
+    { group_name = "ecommerce_data_engineers", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
+    { group_name = "finance_data_engineers", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
+    { group_name = "finance_analysts", can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
+  ]
+
+  secret_scope_acls         = [] # Managed per-scope in secret_scopes module
+  sql_warehouse_permissions = {} # Add warehouse IDs once created
+}
