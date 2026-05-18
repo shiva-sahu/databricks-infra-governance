@@ -208,20 +208,21 @@ module "secret_scopes" {
 }
 
 # ── RBAC ──────────────────────────────────────────────────────────────────────
-module "rbac" {
-  source = "../../modules/rbac"
-
-  admin_groups = ["dbx-admins", "platform_engineers"]
-
-  workspace_roles = [
-    { group_name = "data_engineers", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
-    { group_name = "data_analysts", can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
-    { group_name = "data_scientists", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
-    { group_name = "ecommerce_data_engineers", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
-    { group_name = "finance_data_engineers", can_create_clusters = true, can_create_instance_pools = false, sql_access = true },
-    { group_name = "finance_analysts", can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
-  ]
-
-  secret_scope_acls         = [] # Managed per-scope in secret_scopes module
-  sql_warehouse_permissions = {} # Add warehouse IDs once created
-}
+# Temporarily disabled — uncomment to enable workspace role assignments
+# module "rbac" {
+#   source = "../../modules/rbac"
+#
+#   admin_groups = ["dbx-admins", "platform_engineers"]
+#
+#   workspace_roles = [
+#     { group_name = "data_engineers",           can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
+#     { group_name = "data_analysts",            can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
+#     { group_name = "data_scientists",          can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
+#     { group_name = "ecommerce_data_engineers", can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
+#     { group_name = "finance_data_engineers",   can_create_clusters = true,  can_create_instance_pools = false, sql_access = true },
+#     { group_name = "finance_analysts",         can_create_clusters = false, can_create_instance_pools = false, sql_access = true },
+#   ]
+#
+#   secret_scope_acls         = [] # Managed per-scope in secret_scopes module
+#   sql_warehouse_permissions = {} # Add warehouse IDs once created
+# }
