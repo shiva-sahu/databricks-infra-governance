@@ -1,0 +1,110 @@
+# .github/workflows/destroy.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Terraform Destroy — manual trigger only
+#
+# Destroys all Terraform-managed resources in the target environment.
+# Requires typing the environment name as confirmation to prevent accidents.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to destroy"
+        required: true
+        type: choice
+        options: [dev, prod]
+      confirm:
+        description: "Type the environment name to confirm (e.g. 'dev' or 'prod')"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate-confirmation:
+    name: Validate Confirmation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check confirmation matches environment
+        run: |
+          if [[ "${{ inputs.confirm }}" != "${{ inputs.environment }}" ]]; then
+            echo "::error::Confirmation '${{ inputs.confirm }}' does not match environment '${{ inputs.environment }}'. Aborting."
+            exit 1
+          fi
+          echo "Confirmation validated. Proceeding with destroy of '${{ inputs.environment }}'."
+
+  terraform-destroy:
+    name: Terraform Destroy → ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: validate-confirmation
+    environment: ${{ inputs.environment }}
+
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.ARM_TENANT_ID }}
+      ARM_ACCESS_KEY:      ${{ secrets.TF_STATE_ACCESS_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7"
+
+      - name: Set environment credentials
+        id: creds
+        run: |
+          ENV="${{ inputs.environment }}"
+          if [[ "$ENV" == "prod" ]]; then
+            echo "::add-mask::${{ secrets.DATABRICKS_HOST_PROD }}"
+            echo "::add-mask::${{ secrets.DATABRICKS_TOKEN_PROD }}"
+            echo "databricks_host=${{ secrets.DATABRICKS_HOST_PROD }}"            >> $GITHUB_OUTPUT
+            echo "databricks_token=${{ secrets.DATABRICKS_TOKEN_PROD }}"          >> $GITHUB_OUTPUT
+            echo "workspace_numeric_id=${{ secrets.WORKSPACE_NUMERIC_ID_PROD }}"  >> $GITHUB_OUTPUT
+          else
+            echo "::add-mask::${{ secrets.DATABRICKS_HOST_DEV }}"
+            echo "::add-mask::${{ secrets.DATABRICKS_TOKEN_DEV }}"
+            echo "databricks_host=${{ secrets.DATABRICKS_HOST_DEV }}"             >> $GITHUB_OUTPUT
+            echo "databricks_token=${{ secrets.DATABRICKS_TOKEN_DEV }}"           >> $GITHUB_OUTPUT
+            echo "workspace_numeric_id=${{ secrets.WORKSPACE_NUMERIC_ID_DEV }}"   >> $GITHUB_OUTPUT
+          fi
+
+      - name: Terraform Init
+        working-directory: terraform/environments/${{ inputs.environment }}
+        run: terraform init
+
+      - name: Terraform Destroy
+        working-directory: terraform/environments/${{ inputs.environment }}
+        env:
+          DATABRICKS_HOST:  ${{ steps.creds.outputs.databricks_host }}
+          DATABRICKS_TOKEN: ${{ steps.creds.outputs.databricks_token }}
+        run: |
+          terraform destroy \
+            -auto-approve \
+            -var="databricks_host=${{ steps.creds.outputs.databricks_host }}" \
+            -var="databricks_token=${{ steps.creds.outputs.databricks_token }}" \
+            -var="metastore_id=${{ secrets.METASTORE_ID }}" \
+            -var="workspace_numeric_id=${{ steps.creds.outputs.workspace_numeric_id }}" \
+            -var="access_connector_id=${{ secrets.ACCESS_CONNECTOR_ID }}" \
+            -var="adls_storage_account=${{ secrets.ADLS_STORAGE_ACCOUNT }}" \
+            -var="log_analytics_workspace_id=${{ secrets.LOG_ANALYTICS_WORKSPACE_ID }}" \
+            -var="key_vault_resource_id=${{ secrets.KEY_VAULT_RESOURCE_ID }}" \
+            -var="key_vault_dns_name=${{ secrets.KEY_VAULT_DNS_NAME }}" \
+            2>&1 | tee destroy-output.txt
+
+      - name: Upload destroy log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: destroy-log-${{ inputs.environment }}-${{ github.run_id }}
+          path: terraform/environments/${{ inputs.environment }}/destroy-output.txt
+          retention-days: 90
