@@ -124,6 +124,9 @@ jobs:
       - name: Terraform Plan
         id: plan
         working-directory: terraform/environments/${{ env.ENVIRONMENT }}
+        env:
+          DATABRICKS_HOST:  ${{ steps.secrets.outputs.databricks_host }}
+          DATABRICKS_TOKEN: ${{ steps.secrets.outputs.databricks_token }}
         run: |
           terraform plan \
             -var="databricks_host=${{ steps.secrets.outputs.databricks_host }}" \
@@ -150,6 +153,9 @@ jobs:
       - name: Terraform Apply
         #if: steps.plan.outputs.no_changes != 'true'
         working-directory: terraform/environments/${{ env.ENVIRONMENT }}
+        env:
+          DATABRICKS_HOST:  ${{ steps.secrets.outputs.databricks_host }}
+          DATABRICKS_TOKEN: ${{ steps.secrets.outputs.databricks_token }}
         run: |
           terraform apply \
             -auto-approve \

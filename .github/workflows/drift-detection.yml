@@ -89,6 +89,9 @@ jobs:
       - name: Terraform Plan (drift check)
         id: drift
         working-directory: terraform/environments/${{ matrix.environment }}
+        env:
+          DATABRICKS_HOST:  ${{ steps.creds.outputs.databricks_host }}
+          DATABRICKS_TOKEN: ${{ steps.creds.outputs.databricks_token }}
         run: |
           terraform plan \
             -var="databricks_host=${{ steps.creds.outputs.databricks_host }}" \
