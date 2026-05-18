@@ -174,6 +174,8 @@ resource "databricks_grants" "schema_grants" {
 
 # ── External Location Grants ──────────────────────────────────────────────────
 resource "databricks_grants" "external_location" {
+  count = var.access_connector_id != "" ? 1 : 0
+
   external_location = databricks_external_location.main[0].name
 
   dynamic "grant" {
