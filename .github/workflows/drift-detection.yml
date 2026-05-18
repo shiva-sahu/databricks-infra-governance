@@ -64,37 +64,36 @@ jobs:
           terraform_version: "~1.7"
 
       - name: Set environment credentials
+        id: creds
         run: |
           ENV="${{ matrix.environment }}"
           if [[ "$ENV" == "prod" ]]; then
-            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_PROD }}" >> $GITHUB_ENV
-            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_PROD }}" >> $GITHUB_ENV
-            echo "WORKSPACE_NUMERIC_ID=${{ secrets.WORKSPACE_NUMERIC_ID_PROD }}" >> $GITHUB_ENV
+            echo "::add-mask::${{ secrets.DATABRICKS_HOST_PROD }}"
+            echo "::add-mask::${{ secrets.DATABRICKS_TOKEN_PROD }}"
+            echo "databricks_host=${{ secrets.DATABRICKS_HOST_PROD }}"   >> $GITHUB_OUTPUT
+            echo "databricks_token=${{ secrets.DATABRICKS_TOKEN_PROD }}" >> $GITHUB_OUTPUT
+            echo "workspace_numeric_id=${{ secrets.WORKSPACE_NUMERIC_ID_PROD }}" >> $GITHUB_OUTPUT
           else
-            echo "DATABRICKS_HOST=${{ secrets.DATABRICKS_HOST_DEV }}" >> $GITHUB_ENV
-            echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN_DEV }}" >> $GITHUB_ENV
-            echo "WORKSPACE_NUMERIC_ID=${{ secrets.WORKSPACE_NUMERIC_ID_DEV }}" >> $GITHUB_ENV
+            echo "::add-mask::${{ secrets.DATABRICKS_HOST_DEV }}"
+            echo "::add-mask::${{ secrets.DATABRICKS_TOKEN_DEV }}"
+            echo "databricks_host=${{ secrets.DATABRICKS_HOST_DEV }}"   >> $GITHUB_OUTPUT
+            echo "databricks_token=${{ secrets.DATABRICKS_TOKEN_DEV }}" >> $GITHUB_OUTPUT
+            echo "workspace_numeric_id=${{ secrets.WORKSPACE_NUMERIC_ID_DEV }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Terraform Init
         working-directory: terraform/environments/${{ matrix.environment }}
-        run: |
-          terraform init \
-            -backend-config="resource_group_name=${{ secrets.TF_STATE_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
-            -backend-config="key=databricks-governance/${{ matrix.environment }}/terraform.tfstate" \
-            -backend-config="use_azuread_auth=true"
+        run: terraform init -backend-config="use_azuread_auth=true"
 
       - name: Terraform Plan (drift check)
         id: drift
         working-directory: terraform/environments/${{ matrix.environment }}
         run: |
           terraform plan \
-            -var="databricks_host=${{ env.DATABRICKS_HOST }}" \
-            -var="databricks_token=${{ env.DATABRICKS_TOKEN }}" \
+            -var="databricks_host=${{ steps.creds.outputs.databricks_host }}" \
+            -var="databricks_token=${{ steps.creds.outputs.databricks_token }}" \
             -var="metastore_id=${{ secrets.METASTORE_ID }}" \
-            -var="workspace_numeric_id=${{ env.WORKSPACE_NUMERIC_ID }}" \
+            -var="workspace_numeric_id=${{ steps.creds.outputs.workspace_numeric_id }}" \
             -var="access_connector_id=${{ secrets.ACCESS_CONNECTOR_ID }}" \
             -var="adls_storage_account=${{ secrets.ADLS_STORAGE_ACCOUNT }}" \
             -var="log_analytics_workspace_id=${{ secrets.LOG_ANALYTICS_WORKSPACE_ID }}" \
@@ -107,19 +106,18 @@ jobs:
           echo "plan_exit=$PLAN_EXIT" >> $GITHUB_OUTPUT
 
           if [ $PLAN_EXIT -eq 0 ]; then
-            echo "DRIFT_DETECTED=false" >> $GITHUB_ENV
+            echo "drift_detected=false" >> $GITHUB_OUTPUT
             echo "✅ No drift detected in ${{ matrix.environment }}"
           elif [ $PLAN_EXIT -eq 2 ]; then
-            echo "DRIFT_DETECTED=true" >> $GITHUB_ENV
+            echo "drift_detected=true" >> $GITHUB_OUTPUT
             echo "🚨 DRIFT DETECTED in ${{ matrix.environment }}!"
           else
-            echo "DRIFT_DETECTED=error" >> $GITHUB_ENV
             echo "❌ Terraform plan failed — could not determine drift status"
             exit 1
           fi
 
       - name: Create drift alert issue
-        if: env.DRIFT_DETECTED == 'true'
+        if: steps.drift.outputs.drift_detected == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -206,7 +204,7 @@ jobs:
             }
 
       - name: Close drift issue if resolved
-        if: env.DRIFT_DETECTED == 'false'
+        if: steps.drift.outputs.drift_detected == 'false'
         uses: actions/github-script@v7
         with:
           script: |
