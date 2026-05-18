@@ -7,7 +7,8 @@ variable "metastore_id" {
 
 variable "workspace_numeric_id" {
   description = "Numeric workspace ID for metastore assignment."
-  type        = number
+  type        = string
+  default     = ""
 }
 
 variable "environment" {

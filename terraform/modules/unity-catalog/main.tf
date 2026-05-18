@@ -23,9 +23,10 @@ terraform {
 # The metastore is created ONCE at account level and assigned to workspaces.
 # It is NOT recreated per environment — it's shared and managed centrally.
 resource "databricks_metastore_assignment" "this" {
-  metastore_id         = var.metastore_id
-  workspace_id         = var.workspace_numeric_id
-  default_catalog_name = "${var.environment}_${var.team}_main"
+  count = var.workspace_numeric_id != "" ? 1 : 0
+
+  metastore_id = var.metastore_id
+  workspace_id = tonumber(var.workspace_numeric_id)
 }
 
 # ── External Location (ADLS Gen2) ─────────────────────────────────────────────
