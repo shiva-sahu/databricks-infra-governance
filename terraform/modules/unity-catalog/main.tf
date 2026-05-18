@@ -23,7 +23,7 @@ terraform {
 # The metastore is created ONCE at account level and assigned to workspaces.
 # It is NOT recreated per environment — it's shared and managed centrally.
 resource "databricks_metastore_assignment" "this" {
-  count = var.workspace_numeric_id != "" ? 1 : 0
+  count = var.metastore_id != "" && var.workspace_numeric_id != "" ? 1 : 0
 
   metastore_id = var.metastore_id
   workspace_id = tonumber(var.workspace_numeric_id)

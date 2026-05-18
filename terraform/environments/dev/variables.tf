@@ -15,6 +15,7 @@ variable "databricks_token" {
 variable "metastore_id" {
   description = "Unity Catalog metastore ID."
   type        = string
+  default     = ""
 }
 
 variable "workspace_numeric_id" {

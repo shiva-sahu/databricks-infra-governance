@@ -3,6 +3,7 @@
 variable "metastore_id" {
   description = "Databricks Unity Catalog metastore ID. Created once at account level."
   type        = string
+  default     = ""
 }
 
 variable "workspace_numeric_id" {
