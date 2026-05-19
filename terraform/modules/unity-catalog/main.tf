@@ -88,12 +88,6 @@ resource "databricks_catalog" "catalogs" {
     cost_centre  = each.value.cost_centre
     managed_by   = "terraform"
   }
-
-  lifecycle {
-    prevent_destroy = true
-    # If name changes, the catalog must be explicitly targeted for replacement
-    # This prevents accidental data loss from a rename
-  }
 }
 
 # ── Schemas (Medallion Architecture) ──────────────────────────────────────────
