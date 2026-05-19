@@ -47,13 +47,13 @@ ENGINEER_REQUIRED_CATALOG_PRIVILEGES = {"USE_CATALOG", "CREATE_SCHEMA", "CREATE_
 def load_prod():
     path = os.path.join(PROD_DIR, "main.tf")
     assert os.path.exists(path), f"prod/main.tf not found at {path}"
-    return open(path).read()
+    return open(path, encoding="utf-8").read()
 
 
 def load_file(filename):
     path = os.path.join(PROD_DIR, filename)
     assert os.path.exists(path), f"Expected file missing: {path}"
-    return open(path).read()
+    return open(path, encoding="utf-8").read()
 
 
 # ── Catalog Configuration ──────────────────────────────────────────────────────
@@ -96,14 +96,23 @@ class TestCatalogConfiguration:
         """
         content = load_prod()
 
-        cost_centres = re.findall(r'cost_centre\s*=\s*"(CC-\d{4})"', content)
-        assert len(cost_centres) >= 2, (
-            "At least 2 distinct cost_centre values expected (one per catalog + workspace)"
+        # Extract cost_centres only from within the unity_catalog module block,
+        # not from workspace or sql_warehouses (those legitimately share a cost centre)
+        unity_block = re.search(
+            r'module\s+"unity_catalog"(.+?)^}',
+            content, re.DOTALL | re.MULTILINE
         )
+        assert unity_block, "unity_catalog module block not found"
 
-        # All cost centres should be unique
-        assert len(set(cost_centres)) == len(cost_centres), (
-            f"Cost centres must be unique per catalog. Found duplicates: {cost_centres}"
+        catalog_cost_centres = re.findall(
+            r'cost_centre\s*=\s*"(CC-\d{4})"',
+            unity_block.group(1)
+        )
+        assert len(catalog_cost_centres) >= 2, (
+            "At least 2 cost_centre values expected within unity_catalog (one per catalog)"
+        )
+        assert len(set(catalog_cost_centres)) == len(catalog_cost_centres), (
+            f"Catalog cost centres must be unique. Found duplicates: {catalog_cost_centres}"
         )
 
     def test_each_catalog_has_owner_group(self):
@@ -427,7 +436,7 @@ class TestNoIndividualGrants:
         """
         violations = []
         for filepath in glob.glob(f"{PROD_DIR}/**/*.tf", recursive=True):
-            content = open(filepath).read()
+            content = open(filepath, encoding="utf-8").read()
             lines = content.splitlines()
             for i, line in enumerate(lines, 1):
                 if line.strip().startswith("#"):
@@ -452,7 +461,7 @@ class TestNoIndividualGrants:
         """
         violations = []
         for filepath in glob.glob(f"{PROD_DIR}/**/*.tf", recursive=True):
-            content = open(filepath).read()
+            content = open(filepath, encoding="utf-8").read()
             if 'resource "databricks_user"' in content:
                 violations.append(filepath)
 

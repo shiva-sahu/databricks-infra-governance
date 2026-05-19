@@ -83,7 +83,7 @@ def load_all_tf_content() -> list[tuple[str, str]]:
     """Return list of (filepath, content) for all .tf files."""
     results = []
     for path in find_tf_files():
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             results.append((path, f.read()))
     return results
 

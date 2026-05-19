@@ -23,7 +23,7 @@ TERRAFORM_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "terraform"
 
 def load_all_tf_content():
     files = glob.glob(f"{TERRAFORM_ROOT}/**/*.tf", recursive=True)
-    return [(p, open(p).read()) for p in files]
+    return [(p, open(p, encoding="utf-8").read()) for p in files]
 
 
 # ── Catalog Completeness ───────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ class TestCatalogCostAttribution:
         )
 
         for filepath in prod_files:
-            content = open(filepath).read()
+            content = open(filepath, encoding="utf-8").read()
 
             # Find databricks_catalog resource blocks
             catalog_blocks = re.finditer(

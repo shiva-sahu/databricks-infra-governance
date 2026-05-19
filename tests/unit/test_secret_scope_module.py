@@ -29,7 +29,7 @@ MODULE_DIR = os.path.normpath(
 def load(filename):
     path = os.path.join(MODULE_DIR, filename)
     assert os.path.exists(path), f"Expected file missing: {path}"
-    return open(path).read()
+    return open(path, encoding="utf-8").read()
 
 
 # ── Key Vault Backend ──────────────────────────────────────────────────────────

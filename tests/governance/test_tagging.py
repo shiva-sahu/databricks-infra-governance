@@ -41,7 +41,7 @@ TAGGABLE_AZURE_RESOURCES = [
 
 def load_all_tf_content():
     files = glob.glob(f"{TERRAFORM_ROOT}/**/*.tf", recursive=True)
-    return [(p, open(p).read()) for p in files]
+    return [(p, open(p, encoding="utf-8").read()) for p in files]
 
 
 class TestAzureResourceTagging:

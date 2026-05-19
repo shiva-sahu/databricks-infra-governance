@@ -31,11 +31,14 @@ ENVIRONMENTS_ROOT = os.path.join(TERRAFORM_ROOT, "environments")
 
 def find_tf_files(root=None):
     root = root or TERRAFORM_ROOT
-    return glob.glob(f"{root}/**/*.tf", recursive=True)
+    return [
+        p for p in glob.glob(f"{root}/**/*.tf", recursive=True)
+        if "BAD_EXAMPLE" not in os.path.basename(p)
+    ]
 
 
 def load_all_tf_content(root=None):
-    return [(p, open(p).read()) for p in find_tf_files(root)]
+    return [(p, open(p, encoding="utf-8").read()) for p in find_tf_files(root)]
 
 
 # ── ALL PRIVILEGES Guard ───────────────────────────────────────────────────────

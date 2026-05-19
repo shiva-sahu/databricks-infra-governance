@@ -24,3 +24,23 @@ output "workspace_url" {
   description = "URL of the Databricks workspace"
   value       = module.workspace.workspace_url
 }
+
+output "analyst_warehouse_id" {
+  description = "ID of the analyst SQL warehouse"
+  value       = module.sql_warehouses.analyst_warehouse_id
+}
+
+output "analyst_warehouse_jdbc_url" {
+  description = "JDBC URL for the analyst SQL warehouse"
+  value       = module.sql_warehouses.analyst_warehouse_jdbc_url
+}
+
+output "engineer_warehouse_id" {
+  description = "ID of the engineering SQL warehouse"
+  value       = module.sql_warehouses.engineer_warehouse_id
+}
+
+output "engineer_warehouse_jdbc_url" {
+  description = "JDBC URL for the engineering SQL warehouse"
+  value       = module.sql_warehouses.engineer_warehouse_jdbc_url
+}
