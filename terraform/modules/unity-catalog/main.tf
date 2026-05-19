@@ -66,13 +66,13 @@ resource "databricks_external_location" "main" {
 }
 
 # ── Catalogs ──────────────────────────────────────────────────────────────────
-# Naming: {env}_{team}_{domain}  e.g. prod_ecommerce_ecommerce
+# Naming: {env}_{team}_{domain}  e.g. prod_ecommerce_ecommerce, prod_finance_finance
 # Each catalog is a governance boundary. One per domain.
 resource "databricks_catalog" "catalogs" {
   for_each = var.catalogs
 
   # Enforce naming convention via Terraform
-  name         = "${var.environment}_${each.value.domain}"
+  name         = "${var.environment}_${each.value.team}_${each.value.domain}"
   metastore_id = var.metastore_id != "" ? var.metastore_id : null
   comment      = each.value.comment
 

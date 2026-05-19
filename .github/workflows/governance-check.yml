@@ -25,7 +25,7 @@ permissions:
 jobs:
   # ── Static Governance Tests ─────────────────────────────────────────────────
   governance-tests:
-    name: Governance Tests (Naming · Permissions · Tagging)
+    name: Governance & Module Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -48,7 +48,7 @@ jobs:
       - name: Run governance tests
         id: governance
         run: |
-          pytest tests/governance/ \
+          pytest tests/governance/ tests/unit/ \
             -v \
             --tb=short \
             --md-report \
@@ -97,7 +97,7 @@ jobs:
         if: steps.governance.outcome == 'failure'
         run: |
           echo "::error::Governance tests failed. Fix all violations before merging."
-          echo "::error::Run 'pytest tests/governance/ -v' locally to see full output."
+          echo "::error::Run 'pytest tests/governance/ tests/unit/ -v' locally to see full output."
           exit 1
 
   # ── Terraform Validation ─────────────────────────────────────────────────────
