@@ -170,7 +170,7 @@ resource "databricks_grants" "schema_grants" {
 resource "databricks_grants" "external_location" {
   count = var.access_connector_id != "" ? 1 : 0
 
-  external_location = databricks_external_location.main[0].name
+  external_location = one(databricks_external_location.main[*].name)
 
   dynamic "grant" {
     for_each = var.external_location_grants
