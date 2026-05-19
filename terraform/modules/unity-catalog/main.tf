@@ -66,17 +66,18 @@ resource "databricks_external_location" "main" {
 }
 
 # ── Catalogs ──────────────────────────────────────────────────────────────────
-# Naming: {env}_{team}_{domain}
+# Naming: {env}_{domain}  e.g. prod_ecommerce, prod_finance
 # Each catalog is a governance boundary. One per domain.
 resource "databricks_catalog" "catalogs" {
   for_each = var.catalogs
 
   # Enforce naming convention via Terraform
-  name         = "${var.environment}_${each.value.team}_${each.value.domain}"
-  metastore_id = var.metastore_id
+  name         = "${var.environment}_${each.key}"
+  metastore_id = var.metastore_id != "" ? var.metastore_id : null
   comment      = each.value.comment
 
-  storage_root = var.access_connector_id != "" ? "${databricks_external_location.main[0].url}${each.key}/" : null
+  # one() safely returns null when the external location wasn't created (access_connector_id unset)
+  storage_root = one(databricks_external_location.main[*].url) != null ? "${one(databricks_external_location.main[*].url)}${each.key}/" : null
 
   depends_on = [databricks_metastore_assignment.this]
 
