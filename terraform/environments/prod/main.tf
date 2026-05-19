@@ -66,6 +66,8 @@ module "workspace" {
 module "unity_catalog" {
   source = "../../modules/unity-catalog"
 
+  depends_on = [module.rbac]
+
   metastore_id         = var.metastore_id
   workspace_numeric_id = var.workspace_numeric_id
   environment          = "prod"
@@ -188,14 +190,6 @@ module "secret_scopes" {
   environment = "prod"
 
   secret_scopes = {
-    postgres = {
-      key_vault_resource_id = var.key_vault_resource_id
-      key_vault_dns_name    = var.key_vault_dns_name
-      acls = [
-        { principal = "data_engineers", permission = "READ" },
-        { principal = "admins", permission = "MANAGE" }
-      ]
-    }
     api_keys = {
       key_vault_resource_id = var.key_vault_resource_id
       key_vault_dns_name    = var.key_vault_dns_name

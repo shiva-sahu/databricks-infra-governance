@@ -112,12 +112,14 @@ resource "azurerm_databricks_workspace" "main" {
 
   tags = local.common_tags
 
-  lifecycle {
-    # Prevent accidental destruction of a workspace with data
-    prevent_destroy = true
+  timeouts {
+    create = "60m"
+    update = "60m"
+  }
 
-    # Ignore tag drift from Azure policy auto-tagging
-    ignore_changes = [tags["LastModified"]]
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [tags["LastModified"]]
   }
 }
 

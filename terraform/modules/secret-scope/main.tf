@@ -22,7 +22,7 @@ terraform {
 
 # ── Key Vault-backed Secret Scopes ────────────────────────────────────────────
 resource "databricks_secret_scope" "scopes" {
-  for_each = var.secret_scopes
+  for_each = { for k, v in var.secret_scopes : k => v if v.key_vault_resource_id != "" }
 
   # Naming enforced: {env}_{purpose}
   name = "${var.environment}_${each.key}"
@@ -41,7 +41,7 @@ resource "databricks_secret_scope" "scopes" {
 resource "databricks_secret_acl" "scope_acls" {
   for_each = {
     for acl in flatten([
-      for scope_key, scope in var.secret_scopes : [
+      for scope_key, scope in var.secret_scopes : scope.key_vault_resource_id == "" ? [] : [
         for acl in scope.acls : {
           key        = "${scope_key}_${acl.principal}"
           scope_name = "${var.environment}_${scope_key}"
