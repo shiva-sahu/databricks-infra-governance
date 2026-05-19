@@ -72,7 +72,7 @@ resource "databricks_catalog" "catalogs" {
   for_each = var.catalogs
 
   # Enforce naming convention via Terraform
-  name         = "${var.environment}_${each.value.team}_${each.value.domain}"
+  name         = "${var.environment}_${each.value.domain}"
   metastore_id = var.metastore_id != "" ? var.metastore_id : null
   comment      = each.value.comment
 
@@ -82,11 +82,11 @@ resource "databricks_catalog" "catalogs" {
   depends_on = [databricks_metastore_assignment.this]
 
   properties = {
-    environment  = var.environment
-    team         = each.value.team
-    domain       = each.value.domain
-    cost_centre  = each.value.cost_centre
-    managed_by   = "terraform"
+    environment = var.environment
+    team        = each.value.team
+    domain      = each.value.domain
+    cost_centre = each.value.cost_centre
+    managed_by  = "terraform"
   }
 }
 
@@ -113,9 +113,9 @@ resource "databricks_schema" "schemas" {
   owner        = each.value.catalog.owner_group
 
   properties = {
-    layer        = each.value.layer
-    domain       = each.value.catalog.domain
-    managed_by   = "terraform"
+    layer      = each.value.layer
+    domain     = each.value.catalog.domain
+    managed_by = "terraform"
   }
 }
 
