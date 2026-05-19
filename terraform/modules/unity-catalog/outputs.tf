@@ -15,5 +15,5 @@ output "schema_names" {
 
 output "external_location_name" {
   description = "Name of the external location, or empty string if not created"
-  value       = var.access_connector_id != "" ? databricks_external_location.main[0].name : ""
+  value       = try(databricks_external_location.main[0].name, "")
 }
