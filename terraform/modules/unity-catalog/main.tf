@@ -75,7 +75,6 @@ resource "databricks_catalog" "catalogs" {
   name         = "${var.environment}_${each.value.team}_${each.value.domain}"
   metastore_id = var.metastore_id
   comment      = each.value.comment
-  owner        = each.value.owner_group  # Always a group. Never an individual.
 
   storage_root = var.access_connector_id != "" ? "${databricks_external_location.main[0].url}${each.key}/" : null
 
