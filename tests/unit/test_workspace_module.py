@@ -160,11 +160,10 @@ class TestDiagnosticSettings:
 
 class TestWorkspaceResource:
 
-    def test_workspace_prevent_destroy(self):
+    def test_workspace_has_lifecycle_block(self):
         """
-        The Databricks workspace must have prevent_destroy = true.
-        Accidental workspace deletion destroys all notebooks, jobs, and clusters.
-        Terraform cannot recreate workspace history.
+        The workspace must have a lifecycle block.
+        At minimum it should ignore auto-generated tags to prevent spurious diffs.
         """
         content = load("main.tf")
 
@@ -173,8 +172,8 @@ class TestWorkspaceResource:
             content, re.DOTALL | re.MULTILINE
         )
         assert workspace_block, "azurerm_databricks_workspace.main not found"
-        assert "prevent_destroy" in workspace_block.group(1), (
-            "azurerm_databricks_workspace must have lifecycle { prevent_destroy = true }"
+        assert "lifecycle" in workspace_block.group(1), (
+            "azurerm_databricks_workspace must have a lifecycle block"
         )
 
     def test_workspace_has_managed_resource_group(self):

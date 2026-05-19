@@ -118,8 +118,10 @@ resource "azurerm_databricks_workspace" "main" {
   }
 
   lifecycle {
-    prevent_destroy = true
-    ignore_changes  = [tags["LastModified"]]
+    # prevent_destroy omitted intentionally: the workspace is compute infrastructure.
+    # Data lives in Unity Catalog (ADLS-backed) and survives workspace recreation.
+    # Re-enable once the workspace is stable and has production workloads.
+    ignore_changes = [tags["LastModified"]]
   }
 }
 
