@@ -174,24 +174,25 @@ module "cluster_policies" {
 }
 
 # ── SQL Warehouses ────────────────────────────────────────────────────────────
-module "sql_warehouses" {
-  source = "../../modules/sql-warehouse"
-
-  environment = "prod"
-  cost_centre = "CC-1001"
-
-  # Analyst warehouse: BI queries, dashboards, ad-hoc exploration
-  analyst_cluster_size  = "2X-Small"
-  analyst_max_clusters  = 2
-  analyst_auto_stop_mins = 10
-  analyst_groups        = ["lll-data-analysts", "lll-data-engineers"]
-
-  # Engineering warehouse: ETL validation, data quality, pipeline testing
-  engineer_cluster_size  = "Small"
-  engineer_max_clusters  = 3
-  engineer_auto_stop_mins = 20
-  engineer_groups        = ["lll-data-engineers"]
-}
+# Commented out due to Azure VM quota constraints. Re-enable once quota is increased.
+# module "sql_warehouses" {
+#   source = "../../modules/sql-warehouse"
+#
+#   environment = "prod"
+#   cost_centre = "CC-1001"
+#
+#   # Analyst warehouse: BI queries, dashboards, ad-hoc exploration
+#   analyst_cluster_size   = "2X-Small"
+#   analyst_max_clusters   = 1
+#   analyst_auto_stop_mins = 10
+#   analyst_groups         = ["lll-data-analysts", "lll-data-engineers"]
+#
+#   # Engineering warehouse: ETL validation, data quality, pipeline testing
+#   engineer_cluster_size   = "2X-Small"
+#   engineer_max_clusters   = 1
+#   engineer_auto_stop_mins = 20
+#   engineer_groups         = ["lll-data-engineers"]
+# }
 
 # ── Secret Scopes ─────────────────────────────────────────────────────────────
 module "secret_scopes" {
