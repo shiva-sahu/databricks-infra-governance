@@ -151,12 +151,39 @@ resource "azurerm_monitor_diagnostic_setting" "databricks" {
   enabled_log { category = "unityCatalog" }
 }
 
+# ── Workspace-Level Governance Configuration ──────────────────────────────────
+resource "databricks_workspace_conf" "governance" {
+  count = var.enforce_workspace_conf ? 1 : 0
+
+  custom_config = {
+    # Block notebook result downloads — data stays in the platform
+    "enableExportNotebook"               = "false"
+    # Enforce Unity Catalog as the default namespace
+    "defaultNamespaceName"               = var.environment
+    # Service principals can be granted workspace entitlements via Terraform
+    "enableServicePrincipalEntitlements" = "true"
+  }
+}
+
+# ── IP Access List ─────────────────────────────────────────────────────────────
+resource "databricks_ip_access_list" "allowed" {
+  count = length(var.allowed_ip_ranges) > 0 ? 1 : 0
+
+  label        = "${var.environment}-corporate-network"
+  list_type    = "ALLOW"
+  ip_addresses = var.allowed_ip_ranges
+
+  depends_on = [azurerm_databricks_workspace.main]
+}
+
 # ── Local Values ──────────────────────────────────────────────────────────────
 locals {
   common_tags = merge(var.additional_tags, {
     environment  = var.environment
     team         = var.team
     cost_centre  = var.cost_centre
+    project      = var.project
+    owner        = var.owner
     managed_by   = "terraform"
     repo         = "databricks-governance-demo"
     last_updated = timestamp()

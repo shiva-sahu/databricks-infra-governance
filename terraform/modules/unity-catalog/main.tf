@@ -82,11 +82,14 @@ resource "databricks_catalog" "catalogs" {
   depends_on = [databricks_metastore_assignment.this]
 
   properties = {
-    environment = var.environment
-    team        = each.value.team
-    domain      = each.value.domain
-    cost_centre = each.value.cost_centre
-    managed_by  = "terraform"
+    environment         = var.environment
+    team                = each.value.team
+    domain              = each.value.domain
+    cost_centre         = each.value.cost_centre
+    project             = each.value.project
+    owner               = each.value.owner_contact
+    data_classification = each.value.data_classification
+    managed_by          = "terraform"
   }
 }
 
@@ -113,9 +116,11 @@ resource "databricks_schema" "schemas" {
   owner        = each.value.catalog.owner_group
 
   properties = {
-    layer      = each.value.layer
-    domain     = each.value.catalog.domain
-    managed_by = "terraform"
+    layer               = each.value.layer
+    domain              = each.value.catalog.domain
+    data_classification = each.value.catalog.data_classification
+    project             = each.value.catalog.project
+    managed_by          = "terraform"
   }
 }
 

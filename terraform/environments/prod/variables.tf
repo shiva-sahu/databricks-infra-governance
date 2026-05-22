@@ -49,3 +49,9 @@ variable "key_vault_dns_name" {
   description = "Azure Key Vault DNS name. e.g. https://myvault.vault.azure.net/"
   type        = string
 }
+
+variable "corporate_ip_ranges" {
+  description = "Corporate network CIDR ranges allowed to access the prod workspace. Used for IP access list enforcement."
+  type        = list(string)
+  default     = []
+}

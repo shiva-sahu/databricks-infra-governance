@@ -27,7 +27,7 @@ import pytest
 
 TERRAFORM_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "terraform")
 
-REQUIRED_TAGS = ["environment", "team", "cost_centre", "managed_by"]
+REQUIRED_TAGS = ["environment", "team", "cost_centre", "project", "owner", "managed_by"]
 
 # Azure resources that MUST have tags
 TAGGABLE_AZURE_RESOURCES = [
@@ -201,3 +201,184 @@ class TestDatabricksResourceProperties:
         # Warning only — don't block the PR for this
         if violations:
             print("\n⚠️  MISSING MANAGED_BY PROPERTY:\n" + "\n".join(violations))
+
+
+class TestDataClassificationTagging:
+    """
+    Every Unity Catalog resource (catalog, schema) must declare a data_classification
+    property so downstream tools (lineage, policy engines, audit) know the sensitivity tier.
+
+    Valid values: public | internal | confidential | restricted
+    """
+
+    VALID_CLASSIFICATIONS = {"public", "internal", "confidential", "restricted"}
+
+    def test_catalogs_declare_data_classification(self):
+        violations = []
+
+        for filepath, content in load_all_tf_content():
+            if "variables.tf" in filepath or "outputs.tf" in filepath:
+                continue
+            if "databricks_catalog" not in content:
+                continue
+            # Modules define properties via variables — only check environment compositions
+            if "modules" in filepath.replace("\\", "/"):
+                continue
+
+            # Check that each catalog block in environment files passes data_classification
+            catalog_blocks = re.finditer(
+                r'(\w+)\s*=\s*\{[^}]*data_classification\s*=\s*"([^"]+)"',
+                content, re.DOTALL
+            )
+            found = {m.group(2) for m in catalog_blocks}
+            invalid = found - self.VALID_CLASSIFICATIONS
+            if invalid:
+                violations.append(
+                    f"FAIL  [{filepath}] Invalid data_classification value(s): {invalid}.\n"
+                    f"      Must be one of: {self.VALID_CLASSIFICATIONS}"
+                )
+
+            # Also check the file mentions data_classification at all
+            if "data_classification" not in content:
+                violations.append(
+                    f"FAIL  [{filepath}] File contains catalog definitions but no data_classification.\n"
+                    f"      Add data_classification to every catalog block."
+                )
+
+        assert not violations, (
+            "\n\n🚨 DATA CLASSIFICATION VIOLATIONS:\n\n" + "\n\n".join(violations)
+        )
+
+    def test_catalogs_declare_owner_contact(self):
+        violations = []
+
+        for filepath, content in load_all_tf_content():
+            if "variables.tf" in filepath or "outputs.tf" in filepath:
+                continue
+            if "databricks_catalog" not in content:
+                continue
+            if "modules" in filepath.replace("\\", "/"):
+                continue
+
+            if "owner_contact" not in content:
+                violations.append(
+                    f"FAIL  [{filepath}] Catalog definitions missing owner_contact.\n"
+                    f"      Every catalog must declare an owner_contact for governance accountability."
+                )
+
+        assert not violations, (
+            "\n\n🚨 MISSING OWNER CONTACT:\n\n" + "\n\n".join(violations)
+        )
+
+    def test_catalogs_declare_project(self):
+        violations = []
+
+        for filepath, content in load_all_tf_content():
+            if "variables.tf" in filepath or "outputs.tf" in filepath:
+                continue
+            if "databricks_catalog" not in content:
+                continue
+            if "modules" in filepath.replace("\\", "/"):
+                continue
+
+            if 'project' not in content:
+                violations.append(
+                    f"FAIL  [{filepath}] Catalog definitions missing project field.\n"
+                    f"      Every catalog must declare a project for cost attribution."
+                )
+
+        assert not violations, (
+            "\n\n🚨 MISSING PROJECT FIELD ON CATALOGS:\n\n" + "\n\n".join(violations)
+        )
+
+
+class TestClusterPolicyTagEnforcementExtended:
+    """
+    Extends the base cluster policy tag tests to cover the two new mandatory tags:
+    project (cost attribution) and data_classification (data sensitivity).
+    """
+
+    def test_cluster_policies_require_project_tag(self):
+        violations = []
+
+        for filepath, content in load_all_tf_content():
+            if "variables.tf" in filepath:
+                continue
+            if "databricks_cluster_policy" not in content:
+                continue
+
+            if '"custom_tags.project"' not in content:
+                violations.append(
+                    f"FAIL  [{filepath}] Cluster policy file does not enforce custom_tags.project.\n"
+                    f"      Add: \"custom_tags.project\" = {{ type = \"regex\", pattern = \".+\", required = true }}"
+                )
+
+        assert not violations, (
+            "\n\n🚨 CLUSTER POLICIES MISSING PROJECT TAG ENFORCEMENT:\n\n" + "\n".join(violations)
+        )
+
+    def test_cluster_policies_require_data_classification_tag(self):
+        violations = []
+
+        for filepath, content in load_all_tf_content():
+            if "variables.tf" in filepath:
+                continue
+            if "databricks_cluster_policy" not in content:
+                continue
+
+            if '"custom_tags.data_classification"' not in content:
+                violations.append(
+                    f"FAIL  [{filepath}] Cluster policy file does not enforce custom_tags.data_classification.\n"
+                    f"      Add: \"custom_tags.data_classification\" = {{ type = \"regex\", "
+                    f"pattern = \"^(public|internal|confidential|restricted)$\", required = true }}"
+                )
+
+        assert not violations, (
+            "\n\n🚨 CLUSTER POLICIES MISSING DATA_CLASSIFICATION ENFORCEMENT:\n\n" + "\n".join(violations)
+        )
+
+
+class TestWorkspaceAccessPolicies:
+    """
+    Workspace-level access policy governance.
+    Every environment with enforce_workspace_conf = true must have a
+    databricks_workspace_conf resource wired up.
+    """
+
+    def test_workspace_module_defines_workspace_conf(self):
+        violations = []
+
+        for filepath, content in load_all_tf_content():
+            if "variables.tf" in filepath or "outputs.tf" in filepath:
+                continue
+            if "modules/workspace" not in filepath.replace("\\", "/"):
+                continue
+
+            if "databricks_workspace_conf" not in content:
+                violations.append(
+                    f"FAIL  [{filepath}] Workspace module does not define databricks_workspace_conf.\n"
+                    f"      Add a databricks_workspace_conf resource to enforce workspace-level governance."
+                )
+
+        assert not violations, (
+            "\n\n🚨 MISSING WORKSPACE GOVERNANCE CONFIG:\n\n" + "\n\n".join(violations)
+        )
+
+    def test_workspace_module_defines_ip_access_list(self):
+        violations = []
+
+        for filepath, content in load_all_tf_content():
+            if "variables.tf" in filepath or "outputs.tf" in filepath:
+                continue
+            if "modules/workspace" not in filepath.replace("\\", "/"):
+                continue
+
+            if "databricks_ip_access_list" not in content:
+                violations.append(
+                    f"FAIL  [{filepath}] Workspace module does not define databricks_ip_access_list.\n"
+                    f"      Add a databricks_ip_access_list resource for network-level access control."
+                )
+
+        assert not violations, (
+            "\n\n🚨 MISSING IP ACCESS LIST RESOURCE:\n\n" + "\n\n".join(violations)
+        )

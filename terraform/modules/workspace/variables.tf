@@ -68,6 +68,32 @@ variable "cost_centre" {
   type        = string
 }
 
+variable "project" {
+  description = "Project or application name for governance attribution."
+  type        = string
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{1,50}$", var.project))
+    error_message = "Project must be lowercase alphanumeric with hyphens, starting with a letter."
+  }
+}
+
+variable "owner" {
+  description = "Owning team contact (email or alias) for governance accountability."
+  type        = string
+}
+
+variable "allowed_ip_ranges" {
+  description = "CIDR ranges allowed to access the Databricks workspace. Empty list means no IP restriction."
+  type        = list(string)
+  default     = []
+}
+
+variable "enforce_workspace_conf" {
+  description = "Apply workspace-level governance settings (notebook export restriction, etc.)."
+  type        = bool
+  default     = true
+}
+
 variable "additional_tags" {
   description = "Additional tags to merge with common tags."
   type        = map(string)

@@ -61,11 +61,14 @@ variable "catalogs" {
     - schema_grants: Map of layer → list of { principal, privileges[] }
   EOT
   type = map(object({
-    team        = string
-    domain      = string
-    comment     = string
-    owner_group = string
-    cost_centre = string
+    team                = string
+    domain              = string
+    comment             = string
+    owner_group         = string
+    cost_centre         = string
+    data_classification = string
+    project             = string
+    owner_contact       = string
     grants = list(object({
       principal  = string
       privileges = list(string)
@@ -81,6 +84,13 @@ variable "catalogs" {
       for k, v in var.catalogs : can(regex("^[a-z][a-z0-9_]{1,20}$", v.domain))
     ])
     error_message = "All catalog domain values must be lowercase alphanumeric with underscores."
+  }
+
+  validation {
+    condition = alltrue([
+      for k, v in var.catalogs : contains(["public", "internal", "confidential", "restricted"], v.data_classification)
+    ])
+    error_message = "data_classification must be one of: public, internal, confidential, restricted."
   }
 
   validation {

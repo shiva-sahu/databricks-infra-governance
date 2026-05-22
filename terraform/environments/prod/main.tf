@@ -49,6 +49,8 @@ module "workspace" {
   location    = "eastus2"
   team        = "platform"
   cost_centre = "CC-1001"
+  project     = "databricks-governance-demo"
+  owner       = "platform-team@v4c.ai"
 
   vnet_cidr           = "10.20.0.0/16"
   public_subnet_cidr  = "10.20.1.0/24"
@@ -56,8 +58,11 @@ module "workspace" {
 
   log_analytics_workspace_id = var.log_analytics_workspace_id
 
+  # Prod: restrict access to corporate network CIDRs
+  allowed_ip_ranges      = var.corporate_ip_ranges
+  enforce_workspace_conf = true
+
   additional_tags = {
-    project    = "databricks-governance-demo"
     created_by = "terraform"
   }
 }
@@ -76,11 +81,14 @@ module "unity_catalog" {
 
   catalogs = {
     ecommerce = {
-      team        = "ecommerce"
-      domain      = "ecommerce"
-      comment     = "E-commerce domain: orders, products, customers. Production environment."
-      owner_group = "lll-data-engineers"
-      cost_centre = "CC-1002"
+      team                = "ecommerce"
+      domain              = "ecommerce"
+      comment             = "E-commerce domain: orders, products, customers. Production environment."
+      owner_group         = "lll-data-engineers"
+      cost_centre         = "CC-1002"
+      data_classification = "internal"
+      project             = "databricks-governance-demo"
+      owner_contact       = "ecommerce-team@v4c.ai"
       grants = [
         {
           principal  = "lll-data-engineers"
@@ -107,11 +115,14 @@ module "unity_catalog" {
     }
 
     finance = {
-      team        = "finance"
-      domain      = "finance"
-      comment     = "Finance domain: GL, AP, AR, FX. Production environment."
-      owner_group = "lll-data-engineers"
-      cost_centre = "CC-1003"
+      team                = "finance"
+      domain              = "finance"
+      comment             = "Finance domain: GL, AP, AR, FX. Production environment."
+      owner_group         = "lll-data-engineers"
+      cost_centre         = "CC-1003"
+      data_classification = "confidential"
+      project             = "databricks-governance-demo"
+      owner_contact       = "finance-team@v4c.ai"
       grants = [
         {
           principal  = "lll-data-engineers"
@@ -157,6 +168,9 @@ module "cluster_policies" {
 
   interactive_policy_groups = ["lll-data-analysts", "lll-data-engineers"]
   job_policy_groups         = ["lll-data-engineers"]
+  ml_policy_groups          = ["lll-data-scientists", "lll-data-engineers"]
+  high_memory_policy_groups = ["lll-data-engineers", "lll-data-scientists"]
+  single_user_policy_groups = ["lll-data-engineers", "lll-data-analysts", "lll-data-scientists"]
 }
 
 # ── SQL Warehouses ────────────────────────────────────────────────────────────
