@@ -34,7 +34,7 @@ resource "databricks_sql_endpoint" "analyst" {
   max_num_clusters = var.analyst_max_clusters
   auto_stop_mins   = var.analyst_auto_stop_mins
 
-  warehouse_type = "Serverless"
+  warehouse_type = "PRO"
   enable_photon  = true
 
   channel {
