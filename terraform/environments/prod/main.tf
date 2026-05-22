@@ -168,9 +168,9 @@ module "cluster_policies" {
 
   interactive_policy_groups = ["lll-data-analysts", "lll-data-engineers"]
   job_policy_groups         = ["lll-data-engineers"]
-  ml_policy_groups          = ["lll-data-scientists", "lll-data-engineers"]
-  high_memory_policy_groups = ["lll-data-engineers", "lll-data-scientists"]
-  single_user_policy_groups = ["lll-data-engineers", "lll-data-analysts", "lll-data-scientists"]
+  ml_policy_groups          = ["lll-data-engineers"]
+  high_memory_policy_groups = ["lll-data-engineers"]
+  single_user_policy_groups = ["lll-data-engineers", "lll-data-analysts"]
 }
 
 # ── SQL Warehouses ────────────────────────────────────────────────────────────

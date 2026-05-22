@@ -157,11 +157,9 @@ resource "databricks_workspace_conf" "governance" {
 
   custom_config = {
     # Block notebook result downloads — data stays in the platform
-    "enableExportNotebook"               = "false"
-    # Enforce Unity Catalog as the default namespace
-    "defaultNamespaceName"               = var.environment
-    # Service principals can be granted workspace entitlements via Terraform
-    "enableServicePrincipalEntitlements" = "true"
+    "enableExportNotebook" = "false"
+    # Activate IP access list enforcement when ranges are supplied
+    "enableIpAccessLists"  = tostring(length(var.allowed_ip_ranges) > 0)
   }
 }
 
